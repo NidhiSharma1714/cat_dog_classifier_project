@@ -1,0 +1,30 @@
+# Python cache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Datasets and model files
+dataset/
+saved_model/
+*.h5
+*.tflite
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+
+# Images / temp files
+*.png
+*.jpg
+*.jpeg
+
+# Environment files
+.env
