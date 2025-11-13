@@ -1,0 +1,6 @@
+fastapi==0.111.1
+uvicorn[standard]==0.23.2
+numpy
+Pillow
+python-multipart
+tensorflow>=2.12,<3
