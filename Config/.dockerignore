@@ -1,8 +1,0 @@
-
-__pycache__/
-.venv/
-dataset/
-saved_model/cat_dog_classifier.h5
-*.pyc
-*.pyo
-*.ipynb
