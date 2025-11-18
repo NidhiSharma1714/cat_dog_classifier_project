@@ -1,5 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, Request, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import numpy as np
 import os
@@ -9,6 +11,10 @@ from collections import defaultdict
 from pathlib import Path
 
 from ServiceLayer.ContinuousLearningService import get_continuous_learner
+from ServiceLayer.AdversarialImageService import (
+    generate_adversarial_payload,
+    reload_adversarial_interpreter,
+)
 
 
 # --------------------------
@@ -27,8 +33,25 @@ MODEL_PATH = BASE_DIR / "repository" / "model_repository" / "cat_dog_classifier.
 LOG_DIR = BASE_DIR / "repository" / "attacklog_repository"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "attack_log.csv"
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="CatDog Classifier API with Attack Detection")
+
+# Enable CORS to allow frontend requests from any origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+if FRONTEND_DIR.exists():
+    app.mount(
+        "/frontend",
+        StaticFiles(directory=FRONTEND_DIR),
+        name="frontend",
+    )
 
 def _load_interpreter():
     if not MODEL_PATH.exists():
@@ -48,6 +71,7 @@ def _reload_interpreter():
     interpreter = _load_interpreter()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
+    reload_adversarial_interpreter()
 
 
 continuous_learner = get_continuous_learner(on_model_updated=_reload_interpreter)
@@ -184,6 +208,13 @@ async def predict(request: Request, file: UploadFile = File(...)):
 def root():
     return {"message": "CatDog Classifier API is running. Use /predict to POST an image."}
 
+
+@app.get("/ui", response_class=FileResponse)
+def web_ui():
+    if not FRONTEND_DIR.exists():
+        return {"error": "frontend assets not found"}
+    return FileResponse(FRONTEND_DIR / "index.html")
+
 # --------------------------
 # Adversarial training endpoint (provide TRUE label)
 # --------------------------
@@ -206,5 +237,18 @@ async def adv_learn(file: UploadFile = File(...), label: str = Form(...)):
                 "note": "If model_updated is true, TFLite was regenerated and hot-reloaded."
             }
         )
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=400)
+
+
+# --------------------------
+# Generate adversarial image + prediction
+# --------------------------
+@app.post("/adv_generate")
+async def adv_generate(file: UploadFile = File(...)):
+    try:
+        img = Image.open(file.file).convert("RGB")
+        payload = generate_adversarial_payload(img)
+        return JSONResponse(content=payload)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
